@@ -1,4 +1,111 @@
-# Your code goes here.
-# You can delete these comments, but do not change the name of this file
-# Write your code to expect a terminal of 80 characters wide and 24 rows high
-print('hello world')
+import gspread
+from google.oauth2.service_account import Credentials
+
+SCOPE = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive.file",
+    "https://www.googleapis.com/auth/drive"
+    ]
+
+CREDS = Credentials.from_service_account_file('creds.json')
+SCOPED_CREDS = CREDS.with_scopes(SCOPE)
+GSPREAD_CLIENT = gspread.authorize(SCOPED_CREDS)
+SHEET = GSPREAD_CLIENT.open('love_sandwiches')
+
+
+#function to get information from sales
+def get_sales_data():
+
+    while True:
+        print("Please enter sales data from the last sales day.")
+        print("Information should be 6 numbers, separated by commas.")
+        print("Example: 1,22,0,42,55,60\n")
+
+        data_input = input("Enter your data here: \n")
+# all information is coming like string
+        sales_data = data_input.split(",")
+# split information make separate string numbers
+        if check_data(sales_data):
+            print("Data is valid!")
+            break
+
+    return sales_data
+
+# create a function to check information if is 6  and real numbers
+def check_data(values):
+
+    try:
+        [int(value) for value in values]    # checking for any letters or strings
+        if len(values) != 6:                # checking for exactly 6 numbers
+            raise ValueError(
+                f"Exactly 6 values required, you provided {len(values)}"
+            )
+    except ValueError as e:
+        print(f"Invalid data: {e}, please try again.\n")
+        return False                        # interrupt the loop while up
+
+    return True
+
+# create a general function to update all sheets with the processed information
+# refactoring# avoid repeating the same code,   add a second argument - worksheet
+def update_worksheet(data, worksheet):        # workseet is a local var, second argument used for all sheets
+
+    print(f"Updating {worksheet} information...\n")
+    worksheet_to_update = SHEET.worksheet(worksheet)
+    worksheet_to_update.append_row(data)
+    print(f"{worksheet} worksheet updated successfully !!!\n")
+
+# create a function to calculate surplus and a row for surpluses
+def calculate_surplus_data(sales_row):              # sales_row local var ffor sales_data
+    print("Calculating surplus data...\n")
+    stock = SHEET.worksheet("stock").get_all_values()
+    stock_row = stock[-1]
+
+    surplus_data = []
+    for stock, sales in zip(stock_row, sales_row):    # use the zip method  to iterate both lists
+        surplus = int(stock) - sales
+        surplus_data.append(surplus)
+
+    return surplus_data
+
+#create a function to get list of values for the last 6 days
+def get_last_6_entries_sales():
+
+    sales = SHEET.worksheet("sales")       # get information from sales sheet
+
+    columns = []
+    for ind in range(1, 7):                 # iteration starts from 1 to 7(last 6 cells from column)
+        column = sales.col_values(ind)
+        columns.append(column[-6:])
+
+    return columns
+
+# create a function to calculate the average stock for each item type, adding 8%
+def calculate_stock_data(data):
+
+    print("Calculating stock information for next day...\n")
+    new_stock_data = []
+
+    for column in data:
+        int_column = [int(num) for num in column]
+        average = sum(int_column) / len(int_column)
+        stock_num = average * 1.08
+        new_stock_data.append(round(stock_num))
+
+    return new_stock_data
+
+# create a main function tu run the program
+def main():
+
+    data = get_sales_data()                                 # det information from the sales
+    sales_data = [int(num) for num in data]                 # convert information from the string data to numbers(integer)
+    update_worksheet(sales_data, "sales")         # update the sheet with the  sale's day information
+    new_surplus_data = calculate_surplus_data(sales_data)   # get surplus
+    update_worksheet(new_surplus_data, "surplus") # update the sheet with the new surplus
+    sales_columns = get_last_6_entries_sales()              #get a list with info for last 6 days
+    stock_data = calculate_stock_data(sales_columns)        # get new stock info for next day
+    update_worksheet(stock_data, "stock")         # add info in stock sheet
+
+
+print("Welcome to the Automation analysis program  \n")
+main()
